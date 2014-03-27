@@ -25,42 +25,18 @@ bool is_far_way(double (*data)[2], int left, int right)
 	return false;
 }
 
+int rand_unif(int n)
+{
+	return (int) ((double) n *
+		      (double) rand() / (double) RAND_MAX);
+}
+
 // Fit the data (converted to cartisian coordinates) to a straight line
 // Returns true if error is small enough
 // Used for detecting if the segment of data represents wall or legs
 bool is_line(double (*data)[2], int count)
 {
-	double *x = new double[count];
-	double *y = new double[count];
-	for (int i = 0; i < count; i++) {
-		x[i] = data[i][1] * cos(data[i][0]);
-		y[i] = data[i][1] * sin(data[i][0]);
-	}
-	double alpha, beta; // y = \alpha x + \beta
-	double cov00, cov01, cov11; // covariance matrix
-	double sumsq;		    // sum of residues
-	gsl_fit_linear(x, 1, y, 1, count,
-		       &beta, &alpha,
-		       &cov00, &cov01, &cov11,
-		       &sumsq);
-	double sumy = 0;
-	for (int i = 0; i < count; i++) {
-		sumy += y[i];
-	}
-	double sst = 0;		// total sum of squares
-	for (int i = 0; i < count; i++) {
-		sst += (y[i] - sumy/count) * (y[i] - sumy/count);
-	}
-	double rsq = 1 - sumsq / sst;
-	double stderr = sqrt(sumsq / (count-2));
-	cout << "fit: a = " << alpha << " b = " << beta
-	     << " cov00 = " << cov00 << " cov01 = " << cov01
-	     << " cov11 = " << cov11 << " sumsq = " << sumsq
-	     << " rsq = " << rsq << " stderr = " << stderr
-	     << endl;
-	cout << endl << endl;
-	delete []x;
-	delete []y;
+
 	return false;
 }
 
