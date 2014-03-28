@@ -2,7 +2,7 @@
 
 #Specify your target and your cc source file name below
 TARGET = client
-SRC = client.cc
+SRC = client.cc leg_detection.cc
 
 # Pick up the necessary options, directories and options for compiling and linking with player 
 # Add a warning on all errors, and -g3 for debugging information 

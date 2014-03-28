@@ -7,7 +7,7 @@
 
 using namespace std;
 
-double get_average_distance(double (*data)[2], int count)
+double get_average_distance(const double (*data)[2], int count)
 {
 	double sum = 0;
 	for (int i = 0; i < count; i++)
@@ -15,37 +15,33 @@ double get_average_distance(double (*data)[2], int count)
 	return sum / count;
 }
 
-#define DISTANCE_THREHOLD	2.0
-bool is_far_way(double (*data)[2], int left, int right)
+#define DISTANCE_THRESHOLD	2.0
+bool is_far_way(const double (*data)[2], int left, int right)
 {
 	int count = right - left;
 	double avg = get_average_distance(data+left, count);
-	if (avg > DISTANCE_THREHOLD)
+	if (avg > DISTANCE_THRESHOLD)
 		return true;
 	return false;
 }
 
-int rand_unif(int n)
+#define LINE_DETECTION_THRESHOLD	0.5
+bool is_line(const double (*data)[2], int count)
 {
-	return (int) ((double) n *
-		      (double) rand() / (double) RAND_MAX);
-}
-
-// Fit the data (converted to cartisian coordinates) to a straight line
-// Returns true if error is small enough
-// Used for detecting if the segment of data represents wall or legs
-bool is_line(double (*data)[2], int count)
-{
-
+	double r1 = data[0][1];
+	double r2 = data[count-1][1];
+	double theta = fabs(data[0][0]-data[count-1][0]);
+	double d = sqrt(r1*r1+r2*r2 - 2*cos(theta)*r1*r2);
+	if (d > LINE_DETECTION_THRESHOLD)
+		return true;
 	return false;
 }
 
 // data[i][0] --- angle
 // data[i][1] --- distance
-
 // all units are in meters
-#define DIFF_DISTANCE_THREHOLD	(0.15)
-int detect_leg(double (*data)[2], int count)
+#define DIFF_DISTANCE_THRESHOLD	(0.15)
+int detect_leg(const double (*data)[2], int count)
 {
 	int start = 1;
 	int index = -1;
@@ -54,21 +50,21 @@ int detect_leg(double (*data)[2], int count)
 		int left, right;
 		for (left = start; left < count; left++) {
 			if (fabs(data[left][1] - data[left-1][1])
-			    > DIFF_DISTANCE_THREHOLD)
+			    > DIFF_DISTANCE_THRESHOLD)
 				break;
 		}
 		if (left == count)		// not found
 			break;
 		for (right = left+1; right < count; right++) {
 			if (fabs(data[right][1] - data[right-1][1])
-			    > DIFF_DISTANCE_THREHOLD)
+			    > DIFF_DISTANCE_THRESHOLD)
 				break;
 		}
 		if (right == count)		// not found
 			break;
-		cout << '#' << left << ' ' << right << endl;
+		//		cout << '#' << left << ' ' << right << endl;
 		if (((right - left) <= 2) // too few points
-		    //		    || is_far_way(data, left, right) // too far
+		    || is_far_way(data, left, right) // too far
 		    || is_line(data+left, right-left)) { // not a leg
 			start = right;
 		} else {	// found candidate
@@ -85,6 +81,9 @@ int detect_leg(double (*data)[2], int count)
 	return index;
 }
 
+// Test function for detect_leg()
+// #if 0 comments it out
+#if 0
 int main(int argc, char **argv)
 {
 	char *fname = "output_10";
@@ -106,8 +105,9 @@ int main(int argc, char **argv)
 
 	int leg = -1;
 	if ((leg = detect_leg(data, count)) != -1) {
-		cout << "Leg detected, bearing: " << data[leg][0]
+		cerr << "Leg detected, bearing: " << data[leg][0]
 		     << ", distance: " << data[leg][1] << endl;
 	}
 	return 0;
 }
+#endif
