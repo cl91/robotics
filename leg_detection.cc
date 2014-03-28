@@ -25,7 +25,7 @@ bool is_far_way(const double (*data)[2], int left, int right)
 	return false;
 }
 
-#define LINE_DETECTION_THRESHOLD	0.5
+#define LINE_DETECTION_THRESHOLD	1
 bool is_line(const double (*data)[2], int count)
 {
 	double r1 = data[0][1];

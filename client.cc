@@ -1,6 +1,10 @@
 #include <libplayerc++/playerc++.h>
 #include <cstdlib>
 #include <cmath>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
 #include <ctime>
 #include "args.h"
 
@@ -72,12 +76,12 @@ void avoid_obstacle(Position2dProxy &position, LaserProxy &laser)
       newturnrate = dtor(newturnrate);
 
       // write commands to robot
-      position.SetSpeed(newspeed, newturnrate);
+      position.SetSpeed(newspeed/4, newturnrate/8);
 }
 
 #define MINIMAL_DISTANCE	0.4
-#define MOVE_TO_LEG_SPEED	0.1
-#define MOVE_TO_LEG_TURN_RATE	20	// deg/sec
+#define MOVE_TO_LEG_SPEED	0.05
+#define MOVE_TO_LEG_TURN_RATE	5	// deg/sec
 bool move_to_leg(double angle, double distance,
 		 Position2dProxy &position)
 {
@@ -99,8 +103,31 @@ bool move_to_leg(double angle, double distance,
 	return reached_min_dist;
 }
 
+void dump_laser_data(const char *str, const double (*data)[2],
+		     int count)
+{
+	static int index = 0;
+//	stringstream fname();
+//	fname << "output" << index++;
+//	ofstream f(fname.str());
+	for (int i = 0; i < count; i++) {
+		cerr << data[i][0] << ' ' << data[i][1] << endl;
+	}
+}
+
 // forward declaration
 int detect_leg(const double (*)[2], int);
+
+// Possible states for state machine
+enum states {
+	STATE_AVOID_OBSTACLE,
+	STATE_MOVE_TO_LEG,
+	STATE_REACHED_LEG,
+	STATE_OFFER_DRINKS,
+	STATE_SONAR_TOUCHED,
+	STATE_MOVE_AWAY,
+};
+
 int main(int argc, char **argv)
 {
 	parse_args(argc, argv);
@@ -110,46 +137,83 @@ int main(int argc, char **argv)
 		Position2dProxy position(&robot, gIndex);
 		LaserProxy laser(&robot, gIndex);
 		SonarProxy sonar(&robot, gIndex);
-
+		SpeechProxy speech(&robot, gIndex);
 		cout << robot << endl;
 
 		position.SetMotorEnable(true);
 		srand(time(NULL));
 		sleep(2);
-//		position.RequestGeom();
-//		laser.RequestGeom();
 
-		bool reached_min_dist = false;
-		for (;;) {
+
+		enum states state = STATE_AVOID_OBSTACLE;
+		int count;
+		double (*data)[2] = NULL;
+		int leg = -1;
+
+		while (true) {
 			robot.Read();
-			// if we can detect human presence, move to him
-			int count = laser.GetCount();
-			double (*data)[2] = new double[count][2];
-			for (int i = 0; i < count; i++) {
-				data[i][0] = laser.GetBearing(i);
-				data[i][1] = laser[i];
-			}
-			int leg = detect_leg(data, count);
-			if (leg != -1) {
-				cerr << "Leg detected, bearing: " << data[leg][0]
-				     << ", distance: " << data[leg][1] << endl;
-				if (!reached_min_dist) {
-					reached_min_dist =
-						move_to_leg(data[leg][0], data[leg][1], position);
-					sleep(1);
-					continue;
+			switch (state) {
+			case STATE_AVOID_OBSTACLE:
+				count = laser.GetCount();
+				if (!data)
+					delete []data;
+				data = new double[count][2];
+				for (int i = 0; i < count; i++) {
+					data[i][0] = laser.GetBearing(i);
+					data[i][1] = laser[i];
 				}
-				position.SetSpeed(0.2, 0.1);
-				sleep(2);
+				leg = detect_leg(data, count);
+				if (leg != -1) {
+					cout << "Leg detected, bearing: "
+					     << data[leg][0]
+					     << ", distance: "
+					     << data[leg][1] << endl;
+					state = STATE_MOVE_TO_LEG;
+				} else {
+					avoid_obstacle(position, laser);
+					state = STATE_AVOID_OBSTACLE;
+					sleep(1);
+				}
+				break;
+			case STATE_MOVE_TO_LEG:
+				if (!move_to_leg(data[leg][0], data[leg][1], position)) {
+					count = laser.GetCount();
+					if (!data)
+						delete []data;
+					data = new double[count][2];
+					for (int i = 0; i < count; i++) {
+						data[i][0] = laser.GetBearing(i);
+						data[i][1] = laser[i];
+					}
+					int new_leg = detect_leg(data, count);
+					leg = (new_leg == -1) ? leg : new_leg;
+					state = STATE_MOVE_TO_LEG;
+					sleep(1);
+				} else {
+					state = STATE_OFFER_DRINKS;
+				}
+				break;
+			case STATE_OFFER_DRINKS:
 				position.SetSpeed(0, 0);
-				continue;
+				sleep(1);
+				speech.Say("Take the drink!");
+				sleep(2);
+				state = STATE_SONAR_TOUCHED;
+				break;
+			case STATE_SONAR_TOUCHED:
+				sleep(1);
+				state = STATE_MOVE_AWAY;
+				break;
+			case STATE_MOVE_AWAY:
+				position.SetSpeed(-0.3, 0.8);
+				sleep(1);
+				state = STATE_AVOID_OBSTACLE;
+				break;
+			default:
+				cerr << "ERROR: unreachable case reached"
+				     << endl;
+				break;
 			}
-			// no legs detected, check for obstacles to avoid
-			avoid_obstacle(position, laser);
-			// no need to avoid obstacle, just wander around
-			// wander(position);
-			// wait for some time so that robot can move
-			sleep(1);
 		}
 	} catch (PlayerError &e) {
 		cerr << e << endl;
