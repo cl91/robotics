@@ -6,7 +6,11 @@
 #include <sstream>
 #include <string>
 #include <ctime>
+#include <unistd.h>
 #include "args.h"
+
+// forward declaration
+int detect_leg(const double (*)[2], int);
 
 using namespace std;
 using namespace PlayerCc;
@@ -82,41 +86,66 @@ void avoid_obstacle(Position2dProxy &position, LaserProxy &laser)
 #define MINIMAL_DISTANCE	0.4
 #define MOVE_TO_LEG_SPEED	0.05
 #define MOVE_TO_LEG_TURN_RATE	5	// deg/sec
-bool move_to_leg(double angle, double distance,
+void move_to_leg(double angle, double distance,
+		 PlayerClient &robot,
 		 Position2dProxy &position)
 {
-	double fwd_speed, turn_rate;
-	bool reached_min_dist = false;
+	double turn_rate = MOVE_TO_LEG_TURN_RATE;
+	double fwd_speed = MOVE_TO_LEG_SPEED;
+	double dt;		// time
 
-	if (distance < MINIMAL_DISTANCE) {
-		fwd_speed = 0;
-		reached_min_dist = true;
-	} else
-		fwd_speed = MOVE_TO_LEG_SPEED;
-
+	cout << "Moving to target" << endl;
 	if (angle < 0)
-		turn_rate = -dtor(MOVE_TO_LEG_TURN_RATE);
+		position.SetSpeed(0, -dtor(turn_rate));
 	else
-		turn_rate = dtor(MOVE_TO_LEG_TURN_RATE);
-
-	position.SetSpeed(fwd_speed, turn_rate);
-	return reached_min_dist;
+		position.SetSpeed(0, dtor(turn_rate));
+	if (distance < MINIMAL_DISTANCE)
+		return;
+	dt = fabs(angle) / dtor(turn_rate);
+	dt -= 0.1;		// robot.Read() blocks at 10Hz
+	usleep(dt * 1000000);
+	robot.Read();
+	dt = (distance - MINIMAL_DISTANCE) / fwd_speed;
+	dt -= 0.1;		// robot.Read() blocks at 10Hz
+	position.SetSpeed(fwd_speed, 0);
+	usleep(dt * 1000000);
+	robot.Read();
+	position.SetSpeed(0, 0);
 }
+
+void read_laser_data(LaserProxy &laser, double (*&data)[2],
+		     int count)
+{
+	if (!data)
+		delete []data;
+	data = new double[count][2];
+	for (int i = 0; i < count; i++) {
+		data[i][0] = laser.GetBearing(i);
+		data[i][1] = laser[i];
+	}
+}
+
+// bool reached_target(PlayerClient &robot,
+// 		    LaserProxy &laser,
+// 		    double (*&data)[2], int count)
+// {
+// 	read_laser_data(laser, data, count);
+// 	int leg = detect_leg(data, count);
+// 	if (leg == -1)
+// 		return true;
+// 	double distance = data[leg][1];
+// 	if (distance < MINIMAL_DISTANCE)
+// 		return true;
+// 	return false;
+// }
 
 void dump_laser_data(const char *str, const double (*data)[2],
 		     int count)
 {
-	static int index = 0;
-//	stringstream fname();
-//	fname << "output" << index++;
-//	ofstream f(fname.str());
 	for (int i = 0; i < count; i++) {
 		cerr << data[i][0] << ' ' << data[i][1] << endl;
 	}
 }
-
-// forward declaration
-int detect_leg(const double (*)[2], int);
 
 // Possible states for state machine
 enum states {
@@ -144,24 +173,20 @@ int main(int argc, char **argv)
 		srand(time(NULL));
 		sleep(2);
 
-
 		enum states state = STATE_AVOID_OBSTACLE;
-		int count;
+		int count = 0;
 		double (*data)[2] = NULL;
 		int leg = -1;
 
+		while (count <= 0) {
+			robot.Read();
+			count = laser.GetCount();
+		}
 		while (true) {
 			robot.Read();
 			switch (state) {
 			case STATE_AVOID_OBSTACLE:
-				count = laser.GetCount();
-				if (!data)
-					delete []data;
-				data = new double[count][2];
-				for (int i = 0; i < count; i++) {
-					data[i][0] = laser.GetBearing(i);
-					data[i][1] = laser[i];
-				}
+				read_laser_data(laser, data, count);
 				leg = detect_leg(data, count);
 				if (leg != -1) {
 					cout << "Leg detected, bearing: "
@@ -176,22 +201,14 @@ int main(int argc, char **argv)
 				}
 				break;
 			case STATE_MOVE_TO_LEG:
-				if (!move_to_leg(data[leg][0], data[leg][1], position)) {
-					count = laser.GetCount();
-					if (!data)
-						delete []data;
-					data = new double[count][2];
-					for (int i = 0; i < count; i++) {
-						data[i][0] = laser.GetBearing(i);
-						data[i][1] = laser[i];
-					}
-					int new_leg = detect_leg(data, count);
-					leg = (new_leg == -1) ? leg : new_leg;
-					state = STATE_MOVE_TO_LEG;
-					sleep(1);
-				} else {
-					state = STATE_OFFER_DRINKS;
-				}
+				move_to_leg(data[leg][0], data[leg][1],
+					    robot, position);
+//				if (reached_target(robot, laser, data, count)) {
+				state = STATE_OFFER_DRINKS;
+				cout << "Target reached" << endl;
+//				}
+//				else
+//					state = STATE_MOVE_TO_LEG;
 				break;
 			case STATE_OFFER_DRINKS:
 				position.SetSpeed(0, 0);
