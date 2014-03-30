@@ -224,6 +224,8 @@ int main(int argc, char **argv)
 					state = STATE_WAIT_FOR_SONAR;
 				break;
 			case STATE_MOVE_AWAY:
+				speech.Say("The item is taken.");
+				sleep(2);
 				position.SetSpeed(-0.3, 0.8);
 				sleep(1);
 				state = STATE_AVOID_OBSTACLE;
