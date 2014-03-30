@@ -27,38 +27,6 @@ double rand_unif(double d)
 	return rand_norm() * d;
 }
 
-// // Wander around to find people to approach
-// // Basically just generates random forward_speed and turn_speed
-// #define MAX_SPEED	1
-// #define MAX_TURN	90	// degree/sec
-// void wander(Position2dProxy &position)
-// {
-// 	double forward_speed = rand_unif(MAX_SPEED);
-// 	double turn_speed = dtor(rand_unif(MAX_TURN));
-// 	position.SetSpeed(forward_speed, turn_speed);
-// }
-
-// Avoid obstacles using sonar
-// The idea is shamelessly borrowed from the player tutorial
-// on CECIL, pp. 58
-// #define AVOID_DISTANCE_THRESHOLD       	0.4
-// #define AVOID_SPEED			0.1
-// #define AVOID_TURN_SPEED		60	// deg/sec
-// void avoid_obstacle(Position2dProxy &position, SonarProxy &sonar)
-// {
-// 	// left sonar is no.2
-// 	// right is no.3
-// 	// front and back is no.0 and no.1
-// 	if (sonar[2] < AVOID_DISTANCE_THRESHOLD)
-// 		position.SetSpeed(0, dtor(AVOID_TURN_SPEED));
-// 	else if (sonar[3] < AVOID_DISTANCE_THRESHOLD)
-// 		position.SetSpeed(0, -dtor(AVOID_TURN_SPEED));
-// 	else if (sonar[0] < AVOID_DISTANCE_THRESHOLD)
-// 		position.SetSpeed(-AVOID_SPEED, 0);
-// 	else if (sonar[1] < AVOID_DISTANCE_THRESHOLD)
-// 		position.SetSpeed(AVOID_SPEED, 0);
-// }
-
 // Laser Obstacle Avoid, shamelessly borrowed from the lab tutorial
 void avoid_obstacle(Position2dProxy &position, LaserProxy &laser)
 {
@@ -125,20 +93,6 @@ void read_laser_data(LaserProxy &laser, double (*&data)[2],
 	}
 }
 
-// bool reached_target(PlayerClient &robot,
-// 		    LaserProxy &laser,
-// 		    double (*&data)[2], int count)
-// {
-// 	read_laser_data(laser, data, count);
-// 	int leg = detect_leg(data, count);
-// 	if (leg == -1)
-// 		return true;
-// 	double distance = data[leg][1];
-// 	if (distance < MINIMAL_DISTANCE)
-// 		return true;
-// 	return false;
-// }
-
 void dump_laser_data(const char *str, const double (*data)[2],
 		     int count)
 {
@@ -151,7 +105,6 @@ void dump_laser_data(const char *str, const double (*data)[2],
 enum states {
 	STATE_AVOID_OBSTACLE,
 	STATE_MOVE_TO_LEG,
-	STATE_REACHED_LEG,
 	STATE_OFFER_DRINKS,
 	STATE_WAIT_FOR_SONAR,
 	STATE_MOVE_AWAY,
@@ -204,12 +157,8 @@ int main(int argc, char **argv)
 			case STATE_MOVE_TO_LEG:
 				move_to_leg(data[leg][0], data[leg][1],
 					    robot, position);
-//				if (reached_target(robot, laser, data, count)) {
 				state = STATE_OFFER_DRINKS;
 				cout << "Target reached" << endl;
-//				}
-//				else
-//					state = STATE_MOVE_TO_LEG;
 				break;
 			case STATE_OFFER_DRINKS:
 				speech.Say("Take the drink!");
