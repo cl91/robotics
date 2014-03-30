@@ -153,10 +153,11 @@ enum states {
 	STATE_MOVE_TO_LEG,
 	STATE_REACHED_LEG,
 	STATE_OFFER_DRINKS,
-	STATE_SONAR_TOUCHED,
+	STATE_WAIT_FOR_SONAR,
 	STATE_MOVE_AWAY,
 };
 
+#define SONAR_THRESHOLD		0.2
 int main(int argc, char **argv)
 {
 	parse_args(argc, argv);
@@ -211,15 +212,16 @@ int main(int argc, char **argv)
 //					state = STATE_MOVE_TO_LEG;
 				break;
 			case STATE_OFFER_DRINKS:
-				position.SetSpeed(0, 0);
-				sleep(1);
 				speech.Say("Take the drink!");
-				sleep(2);
-				state = STATE_SONAR_TOUCHED;
-				break;
-			case STATE_SONAR_TOUCHED:
 				sleep(1);
-				state = STATE_MOVE_AWAY;
+				state = STATE_WAIT_FOR_SONAR;
+				break;
+			case STATE_WAIT_FOR_SONAR:
+				if ((sonar[0] < SONAR_THRESHOLD) &&
+				    (sonar[1] < SONAR_THRESHOLD))
+					state = STATE_MOVE_AWAY;
+				else
+					state = STATE_WAIT_FOR_SONAR;
 				break;
 			case STATE_MOVE_AWAY:
 				position.SetSpeed(-0.3, 0.8);
