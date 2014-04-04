@@ -64,9 +64,9 @@ void move_to_leg(double angle, double distance,
 
 	cout << "Moving to target" << endl;
 	if (angle < 0)
-		position.SetSpeed(0, -dtor(turn_rate));
+		position.SetSpeed(0.01, -dtor(turn_rate));
 	else
-		position.SetSpeed(0, dtor(turn_rate));
+		position.SetSpeed(0.01, dtor(turn_rate));
 	if (distance < MINIMAL_DISTANCE)
 		return;
 	dt = fabs(angle) / dtor(turn_rate);
@@ -75,6 +75,7 @@ void move_to_leg(double angle, double distance,
 	robot.Read();
 	dt = (distance - MINIMAL_DISTANCE) / fwd_speed;
 	dt -= 0.1;		// robot.Read() blocks at 10Hz
+	cout << fwd_speed << endl;
 	position.SetSpeed(fwd_speed, 0);
 	usleep(dt * 1000000);
 	robot.Read();
