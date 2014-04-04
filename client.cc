@@ -178,7 +178,6 @@ int main(int argc, char **argv)
 				state = STATE_WAIT_FOR_SONAR;
 				break;
 			case STATE_WAIT_FOR_SONAR:
-				cerr << get_sonar_min(sonar) << endl;
 				if (get_sonar_min(sonar) < SONAR_THRESHOLD) {
 					speech.Say("The item is taken.");
 					start_time = time(NULL);
