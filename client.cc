@@ -48,38 +48,30 @@ void avoid_obstacle(Position2dProxy &position, LaserProxy &laser)
       newturnrate = dtor(newturnrate);
 
       // write commands to robot
-      position.SetSpeed(newspeed/4, newturnrate/8);
+      position.SetSpeed(newspeed, newturnrate);
 }
 
 #define MINIMAL_DISTANCE	0.4
+#define ANGLE_THRESHOLD		dtor(5)
 #define MOVE_TO_LEG_SPEED	0.05
-#define MOVE_TO_LEG_TURN_RATE	5	// deg/sec
+#define MOVE_TO_LEG_TURN_RATE	dtor(5)	// deg/sec
 void move_to_leg(double angle, double distance,
 		 PlayerClient &robot,
 		 Position2dProxy &position)
 {
-	double turn_rate = MOVE_TO_LEG_TURN_RATE;
+	double turn_rate = 0;
 	double fwd_speed = MOVE_TO_LEG_SPEED;
-	double dt;		// time
 
-	cout << "Moving to target" << endl;
-	if (angle < 0)
-		position.SetSpeed(0.01, -dtor(turn_rate));
-	else
-		position.SetSpeed(0.01, dtor(turn_rate));
 	if (distance < MINIMAL_DISTANCE)
 		return;
-	dt = fabs(angle) / dtor(turn_rate);
-	dt -= 0.1;		// robot.Read() blocks at 10Hz
-	usleep(dt * 1000000);
-	robot.Read();
-	dt = (distance - MINIMAL_DISTANCE) / fwd_speed;
-	dt -= 0.1;		// robot.Read() blocks at 10Hz
-	cout << fwd_speed << endl;
-	position.SetSpeed(fwd_speed, 0);
-	usleep(dt * 1000000);
-	robot.Read();
-	position.SetSpeed(0, 0);
+
+	if (fabs(angle) > ANGLE_THRESHOLD) {
+		if (angle < 0)
+			turn_rate = -MOVE_TO_LEG_TURN_RATE;
+		else
+			turn_rate = MOVE_TO_LEG_TURN_RATE;
+	}
+	position.SetSpeed(fwd_speed, turn_rate);
 }
 
 void read_laser_data(LaserProxy &laser, double (*&data)[2],
@@ -102,6 +94,15 @@ void dump_laser_data(const char *str, const double (*data)[2],
 	}
 }
 
+double get_sonar_min(SonarProxy &sonar)
+{
+	double min = 100;
+	for (int i = 0; i < 8; i++)
+		if (sonar[i] < min)
+			min = sonar[i];
+	return min;
+}
+
 // Possible states for state machine
 enum states {
 	STATE_AVOID_OBSTACLE,
@@ -111,7 +112,7 @@ enum states {
 	STATE_MOVE_AWAY,
 };
 
-#define SONAR_THRESHOLD		0.2
+#define SONAR_THRESHOLD		0.3
 int main(int argc, char **argv)
 {
 	parse_args(argc, argv);
@@ -132,6 +133,8 @@ int main(int argc, char **argv)
 		int count = 0;
 		double (*data)[2] = NULL;
 		int leg = -1;
+		time_t start_time = 0; // time when robot is moving away
+		time_t current_time = 0;
 
 		while (count <= 0) {
 			robot.Read();
@@ -148,6 +151,7 @@ int main(int argc, char **argv)
 					     << data[leg][0]
 					     << ", distance: "
 					     << data[leg][1] << endl;
+					cout << "Moving to target" << endl;
 					state = STATE_MOVE_TO_LEG;
 				} else {
 					avoid_obstacle(position, laser);
@@ -158,27 +162,37 @@ int main(int argc, char **argv)
 			case STATE_MOVE_TO_LEG:
 				move_to_leg(data[leg][0], data[leg][1],
 					    robot, position);
-				state = STATE_OFFER_DRINKS;
-				cout << "Target reached" << endl;
+				read_laser_data(laser, data, count);
+				leg = detect_leg(data, count);
+				if ((leg != -1) && (data[leg][1] < MINIMAL_DISTANCE)) {
+					state = STATE_OFFER_DRINKS;
+					cout << "Target reached" << endl;
+				} else {
+					state = STATE_MOVE_TO_LEG;
+				}
 				break;
 			case STATE_OFFER_DRINKS:
+				position.SetSpeed(0, 0);
 				speech.Say("Take the drink!");
 				sleep(1);
 				state = STATE_WAIT_FOR_SONAR;
 				break;
 			case STATE_WAIT_FOR_SONAR:
-				if ((sonar[0] < SONAR_THRESHOLD) &&
-				    (sonar[1] < SONAR_THRESHOLD))
+				cerr << get_sonar_min(sonar) << endl;
+				if (get_sonar_min(sonar) < SONAR_THRESHOLD) {
+					speech.Say("The item is taken.");
+					start_time = time(NULL);
 					state = STATE_MOVE_AWAY;
-				else
+				} else
 					state = STATE_WAIT_FOR_SONAR;
 				break;
 			case STATE_MOVE_AWAY:
-				speech.Say("The item is taken.");
-				sleep(2);
-				position.SetSpeed(-0.3, 0.8);
-				sleep(1);
-				state = STATE_AVOID_OBSTACLE;
+				position.SetSpeed(0.01, dtor(20));
+				current_time = time(NULL);
+				if ((current_time - start_time) < 9)
+					state = STATE_MOVE_AWAY;
+				else
+					state = STATE_AVOID_OBSTACLE;
 				break;
 			default:
 				cerr << "ERROR: unreachable case reached"
