@@ -7,6 +7,7 @@
 
 using namespace std;
 
+// Compute the average distance to target from the laser data
 double get_average_distance(const double (*data)[2], int count)
 {
 	double sum = 0;
@@ -15,6 +16,7 @@ double get_average_distance(const double (*data)[2], int count)
 	return sum / count;
 }
 
+// Used for ignoring targets that exceeds a distance threshold
 #define DISTANCE_THRESHOLD	2.0
 bool is_far_way(const double (*data)[2], int left, int right)
 {
@@ -25,6 +27,9 @@ bool is_far_way(const double (*data)[2], int left, int right)
 	return false;
 }
 
+// Compute the maximal distances of laser data points to determine
+// if the segment is a line. A line will not be detected as a leg
+// in the leg detection algorithm
 #define LINE_DETECTION_THRESHOLD	1
 bool is_line(const double (*data)[2], int count)
 {
@@ -37,6 +42,7 @@ bool is_line(const double (*data)[2], int count)
 	return false;
 }
 
+// Main leg detection algorithm. See the documentation for details
 // data[i][0] --- angle
 // data[i][1] --- distance
 // all units are in meters

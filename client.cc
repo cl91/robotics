@@ -51,6 +51,10 @@ void avoid_obstacle(Position2dProxy &position, LaserProxy &laser)
       position.SetSpeed(newspeed, newturnrate);
 }
 
+// move_to_leg issues commands to the robots' motors (Position2dProxy)
+// to move the robot towards the target.
+// Do nothing if the minimal distance (MINIMAL_DISTANCE) is reached
+// Angular movement is controlled by the parameter ANGLE_THRESHOLD 
 #define MINIMAL_DISTANCE	0.4
 #define ANGLE_THRESHOLD		dtor(5)
 #define MOVE_TO_LEG_SPEED	0.05
@@ -74,6 +78,7 @@ void move_to_leg(double angle, double distance,
 	position.SetSpeed(fwd_speed, turn_rate);
 }
 
+// Read laser data from a LaserProxy to the given array (data)
 void read_laser_data(LaserProxy &laser, double (*&data)[2],
 		     int count)
 {
@@ -86,6 +91,8 @@ void read_laser_data(LaserProxy &laser, double (*&data)[2],
 	}
 }
 
+// Print the laser data to the screen
+// Only for debugging purposes
 void dump_laser_data(const char *str, const double (*data)[2],
 		     int count)
 {
@@ -94,6 +101,8 @@ void dump_laser_data(const char *str, const double (*data)[2],
 	}
 }
 
+// Get the minimal sonar range
+// Used for detecting if item is taken
 double get_sonar_min(SonarProxy &sonar)
 {
 	double min = 100;
@@ -112,7 +121,9 @@ enum states {
 	STATE_MOVE_AWAY,
 };
 
-#define SONAR_THRESHOLD		0.3
+// The main control loop is a state machine.
+// See the documentation for details (state diagram and transitions)
+#define SONAR_THRESHOLD		0.25
 int main(int argc, char **argv)
 {
 	parse_args(argc, argv);
@@ -164,7 +175,8 @@ int main(int argc, char **argv)
 					    robot, position);
 				read_laser_data(laser, data, count);
 				leg = detect_leg(data, count);
-				if ((leg != -1) && (data[leg][1] < MINIMAL_DISTANCE)) {
+				if ((leg != -1) &&
+					(data[leg][1] < MINIMAL_DISTANCE)) {
 					state = STATE_OFFER_DRINKS;
 					cout << "Target reached" << endl;
 				} else {
